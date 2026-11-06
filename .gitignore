@@ -11,6 +11,16 @@ node_modules/
 frontend/dist/
 *.exe
 
+# Terraform: состояние и переменные могут содержать личные данные
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+
+# Сырые отчёты нагрузочных тестов, итоговые цифры лежат в loadtest/README.md
+loadtest/results/
+
 # Настройки редакторов
 .idea/
 .vscode/

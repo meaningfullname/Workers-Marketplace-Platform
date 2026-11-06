@@ -27,6 +27,7 @@ x-go-env: &go-env
 services:
   postgres:
     image: postgis/postgis:15-3.4
+    command: ["postgres", "-c", "shared_preload_libraries=pg_stat_statements"]
     environment:
       POSTGRES_USER: user
       POSTGRES_PASSWORD: pass
