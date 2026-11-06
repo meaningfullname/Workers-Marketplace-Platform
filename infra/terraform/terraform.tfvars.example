@@ -1,0 +1,3 @@
+# Скопируй в terraform.tfvars и подставь свои значения. Этот файл в git не попадает.
+operator_cidr = "203.0.113.10/32"
+budget_email  = "you@example.com"

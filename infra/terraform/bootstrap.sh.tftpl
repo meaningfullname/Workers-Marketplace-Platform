@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+# Выполняется один раз при первом запуске машины. Журнал: /var/log/cloud-init-output.log
+set -euxo pipefail
+
+curl --fail --silent --show-error --location https://get.docker.com | sh
+usermod --append --groups docker ubuntu
+
+git clone "${repo_url}" /home/ubuntu/app
+git -C /home/ubuntu/app checkout "${git_ref}"
+chown --recursive ubuntu:ubuntu /home/ubuntu/app
