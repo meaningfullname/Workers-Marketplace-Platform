@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  go:
+    name: Go vet and build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - run: go vet ./...
+      - run: go build ./...
+
+  images:
+    name: Image ${{ matrix.service }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - api-gateway
+          - booking-service
+          - chat-service
+          - geolocation-service
+          - notification-service
+          - payment-service
+          - usermanagement-service
+    steps:
+      - uses: actions/checkout@v4
+      - run: >-
+          docker build
+          --file Dockerfile
+          --build-arg SERVICE=${{ matrix.service }}
+          --tag workers/${{ matrix.service }}:ci
+          .

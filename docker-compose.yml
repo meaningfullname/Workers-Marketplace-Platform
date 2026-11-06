@@ -1,29 +1,63 @@
+x-go-service: &go-service
+  restart: on-failure
+  depends_on:
+    postgres:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+
+x-go-env: &go-env
+  DB_DSN: postgres://user:pass@postgres:5432/app?sslmode=disable
+  JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+  GATEWAY_SHARED_SECRET: ${GATEWAY_SHARED_SECRET:?set GATEWAY_SHARED_SECRET in .env}
+  USER_SERVICE_URL: http://usermanagement-service:8081
+  USER_GRPC_ADDR: usermanagement-service:9091
+  BOOKING_SERVICE_URL: http://booking-service:8082
+  CHAT_SERVICE_URL: http://chat-service:8083
+  GEOLOCATION_SERVICE_URL: http://geolocation-service:8084
+  NOTIFICATION_SERVICE_URL: http://notification-service:8085
+  PAYMENT_GRPC_ADDR: payment-service:9096
+  REDIS_ADDR: redis:6379
+  EMAIL_REQUIRED: "false"
+  S3_ENDPOINT: minio:9000
+  S3_ACCESS_KEY: minioadmin
+  S3_SECRET_KEY: minioadmin
+  S3_BUCKET: uploads
 
 services:
   postgres:
     image: postgis/postgis:15-3.4
-    container_name: postgres
     environment:
       POSTGRES_USER: user
       POSTGRES_PASSWORD: pass
       POSTGRES_DB: app
     ports:
-    - "5433:5432"    
+      - "5433:5432"
     volumes:
       - pg_data:/var/lib/postgresql/data
+      - ./sql/schema_for_friend.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ./sql/seed_categories.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready --username=user --dbname=app"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
 
   redis:
     image: redis:7-alpine
-    container_name: redis
-    ports:
-      - "6379:6379"
+    command: ["redis-server", "--appendonly", "yes"]
     volumes:
       - redis_data:/data
-    command: ["redis-server", "--appendonly", "yes"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
 
   minio:
-    image: minio/minio:latest
-    container_name: minio
+    image: quay.io/minio/minio:latest
+    profiles: ["storage"]
+    command: ["server", "/data", "--console-address", ":9001"]
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
@@ -32,7 +66,37 @@ services:
       - "9001:9001"
     volumes:
       - minio_data:/data
-    command: ["server", "/data", "--console-address", ":9001"]
+
+  usermanagement-service:
+    <<: *go-service
+    build: { context: ., dockerfile: Dockerfile, args: { SERVICE: usermanagement-service } }
+    environment: *go-env
+  booking-service:
+    <<: *go-service
+    build: { context: ., dockerfile: Dockerfile, args: { SERVICE: booking-service } }
+    environment: *go-env
+  chat-service:
+    <<: *go-service
+    build: { context: ., dockerfile: Dockerfile, args: { SERVICE: chat-service } }
+    environment: *go-env
+  geolocation-service:
+    <<: *go-service
+    build: { context: ., dockerfile: Dockerfile, args: { SERVICE: geolocation-service } }
+    environment: *go-env
+  payment-service:
+    <<: *go-service
+    build: { context: ., dockerfile: Dockerfile, args: { SERVICE: payment-service } }
+    environment: *go-env
+  notification-service:
+    <<: *go-service
+    build: { context: ., dockerfile: Dockerfile, args: { SERVICE: notification-service } }
+    environment: *go-env
+  api-gateway:
+    <<: *go-service
+    build: { context: ., dockerfile: Dockerfile, args: { SERVICE: api-gateway } }
+    environment: *go-env
+    ports:
+      - "8080:8080"
 
 volumes:
   pg_data:
