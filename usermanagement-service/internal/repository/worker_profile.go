@@ -3,13 +3,15 @@ package repository
 import (
 	"context"
 	"diploma/usermanagement-service/internal/model"
+	"sync/atomic"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type WorkerProfileRepository struct {
-	db *pgxpool.Pool
+	db             *pgxpool.Pool
+	columnsEnsured atomic.Bool
 }
 
 type VerifiedWorkerSkill struct {
@@ -42,7 +44,12 @@ func NewWorkerProfileRepository(db *pgxpool.Pool) *WorkerProfileRepository {
 	return &WorkerProfileRepository{db: db}
 }
 
+// EnsureProfileColumns вызывается при каждом обращении к профилю, поэтому схему проверяет только
+// первый вызов: ALTER TABLE берёт эксклюзивную блокировку и выстраивает запросы к таблице в очередь.
 func (r *WorkerProfileRepository) EnsureProfileColumns(ctx context.Context) error {
+	if r.columnsEnsured.Load() {
+		return nil
+	}
 	_, err := r.db.Exec(ctx, `
 		ALTER TABLE worker_profiles
 		ADD COLUMN IF NOT EXISTS profile_photo_url text;
@@ -75,6 +82,9 @@ func (r *WorkerProfileRepository) EnsureProfileColumns(ctx context.Context) erro
 		CREATE INDEX IF NOT EXISTS idx_worker_identity_documents_profile_status
 			ON worker_identity_documents(worker_profile_id, status, created_at DESC);
 	`)
+	if err == nil {
+		r.columnsEnsured.Store(true)
+	}
 	return err
 }
 

@@ -1,0 +1,10 @@
+.git
+.env
+.env.*
+frontend
+docs
+sql
+minio-render
+*.md
+Makefile
+docker-compose.yml

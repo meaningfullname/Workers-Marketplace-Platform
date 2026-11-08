@@ -123,6 +123,22 @@ func (r *BookingRepository) EnsureWorkflowColumns(ctx context.Context) error {
 	return err
 }
 
+// EnsurePerformanceIndexes вызывается отдельно от EnsureWorkflowColumns: новое значение enum
+// price_pending нельзя использовать в той же транзакции, где оно добавлено.
+func (r *BookingRepository) EnsurePerformanceIndexes(ctx context.Context) error {
+	_, err := r.db.Exec(ctx, `
+		CREATE INDEX IF NOT EXISTS idx_service_requests_customer_profile
+			ON service_requests (customer_profile_id);
+		CREATE INDEX IF NOT EXISTS idx_bookings_request
+			ON bookings (request_id);
+		CREATE INDEX IF NOT EXISTS idx_bookings_price_pending
+			ON bookings (created_at) WHERE status = 'price_pending';
+		CREATE INDEX IF NOT EXISTS idx_reviews_worker_rating
+			ON reviews (worker_profile_id) INCLUDE (rating);
+	`)
+	return err
+}
+
 func (r *BookingRepository) Create(
 	ctx context.Context,
 	requestID int,

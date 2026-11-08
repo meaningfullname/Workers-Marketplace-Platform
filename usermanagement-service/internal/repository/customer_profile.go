@@ -4,12 +4,14 @@ import (
 	"context"
 	"database/sql"
 	"diploma/usermanagement-service/internal/model"
+	"sync/atomic"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type CustomerProfileRepository struct {
-	db *pgxpool.Pool
+	db             *pgxpool.Pool
+	columnsEnsured atomic.Bool
 }
 
 func NewCustomerProfileRepository(db *pgxpool.Pool) *CustomerProfileRepository {
@@ -26,12 +28,20 @@ func (r *CustomerProfileRepository) Create(ctx context.Context, userID int) erro
 	return err
 }
 
+// EnsureProfileColumns вызывается при каждом чтении профиля, поэтому схему проверяет только первый
+// вызов: ALTER TABLE берёт эксклюзивную блокировку и выстраивает все запросы к таблице в очередь.
 func (r *CustomerProfileRepository) EnsureProfileColumns(ctx context.Context) error {
+	if r.columnsEnsured.Load() {
+		return nil
+	}
 	_, err := r.db.Exec(ctx, `
 		ALTER TABLE customer_profiles
 			ADD COLUMN IF NOT EXISTS bio text,
 			ADD COLUMN IF NOT EXISTS profile_photo_url text
 	`)
+	if err == nil {
+		r.columnsEnsured.Store(true)
+	}
 	return err
 }
 

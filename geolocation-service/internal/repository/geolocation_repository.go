@@ -53,12 +53,12 @@ func (r *GeolocationRepository) FindNearbyWorkers(
 		JOIN users u ON u.user_id = wp.user_id
 		JOIN worker_skills ws ON ws.worker_profile_id = wp.worker_profile_id
 		JOIN service_categories sc ON sc.category_id = ws.category_id
-		LEFT JOIN (
-			SELECT worker_profile_id, ROUND(AVG(rating)::numeric, 2) AS average_rating, COUNT(*) AS review_count
-			FROM reviews
-			GROUP BY worker_profile_id
-		) review_stats ON review_stats.worker_profile_id = wp.worker_profile_id
 		CROSS JOIN origin
+		LEFT JOIN LATERAL (
+			SELECT ROUND(AVG(r.rating)::numeric, 2) AS average_rating, COUNT(*) AS review_count
+			FROM reviews r
+			WHERE r.worker_profile_id = wp.worker_profile_id
+		) review_stats ON true
 		WHERE ws.category_id = $1
 		  AND ws.is_verified = true
 		  AND u.status = 'active'
