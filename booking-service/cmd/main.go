@@ -49,6 +49,9 @@ func main() {
 	if err := bookingRepo.EnsureWorkflowColumns(ctx); err != nil {
 		log.Printf("Booking workflow bootstrap skipped: %v", err)
 	}
+	if err := bookingRepo.EnsurePerformanceIndexes(ctx); err != nil {
+		log.Printf("Booking performance indexes skipped: %v", err)
+	}
 	bookingService := service.NewBookingService(bookingRepo)
 
 	userClient := client.NewUserClient(
