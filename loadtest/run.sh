@@ -29,7 +29,7 @@ psql_cmd="${PGHOST_CMD:-docker compose --project-directory $root exec --no-TTY p
 
 $psql_cmd --quiet --command='SELECT pg_stat_statements_reset();' >/dev/null
 
-docker run --rm --network host --user "$(id --user)" \
+docker run --rm --name "k6-$label" --network host --user "$(id --user)" \
   --volume "$root/loadtest/k6:/scripts:ro" \
   --volume "$results:/results" \
   --env BASE_URL="$base_url" --env SCENARIO="$scenario" --env RATE="$rate" \

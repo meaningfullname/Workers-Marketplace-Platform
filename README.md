@@ -45,6 +45,16 @@ loadtest/run.sh polling --rate 50 --duration 5m --label before-polling
 loadtest/run.sh search --stages 50:1m,100:1m,200:1m --label search-ramp   # find the saturation point
 ```
 
+When k6 and the stack share one machine, the machine itself can become the bottleneck. `monitor.sh` wraps a run,
+samples CPU, memory, load average, temperature (when a sensor exists; WSL has none), power source and the busiest container
+into `loadtest/results/<label>.system.csv`, and stops the test (exit code 3) if CPU stays saturated, memory runs out,
+the machine overheats or the battery runs low:
+
+```bash
+loadtest/monitor.sh -- loadtest/run.sh polling --rate 50 --duration 5m --label after-polling
+loadtest/monitor.sh --interval 2 --max-cpu 90 --cpu-seconds 30 -- loadtest/run.sh login --rate 100
+```
+
 ### Results (local)
 
 Measured locally on WSL2 (16 vCPU, 7.6 GB RAM), k6 and the whole stack on the same machine, 5 minutes per run, constant rate.
