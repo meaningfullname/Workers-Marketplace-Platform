@@ -9,6 +9,7 @@ import (
 	"errors"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	usermanagementpb "diploma/api/usermanagement-service-proto"
@@ -26,6 +27,10 @@ type UserClient struct {
 	address       string
 	gatewaySecret string
 	jwtSecret     []byte
+
+	connOnce sync.Once
+	conn     *grpc.ClientConn
+	connErr  error
 }
 
 func NewUserClient(address string, gatewaySecret string, jwtSecret string) *UserClient {
@@ -89,13 +94,12 @@ func (c *UserClient) HasPaymentMethod(ctx context.Context, token string) (bool, 
 		callCtx = metadata.AppendToOutgoingContext(callCtx, "x-gateway-secret", c.gatewaySecret)
 	}
 
-	conn, err := grpc.NewClient(c.address, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	grpcClient, err := c.grpcClient()
 	if err != nil {
 		return false, err
 	}
-	defer conn.Close()
 
-	resp, err := usermanagementpb.NewUserManagementServiceClient(conn).HasPaymentMethod(
+	resp, err := grpcClient.HasPaymentMethod(
 		callCtx,
 		&usermanagementpb.GetProfileRequest{UserId: int64(userID)},
 	)
@@ -112,13 +116,26 @@ func (c *UserClient) call(ctx context.Context, fn func(context.Context, usermana
 		callCtx = metadata.AppendToOutgoingContext(callCtx, "x-gateway-secret", c.gatewaySecret)
 	}
 
-	conn, err := grpc.NewClient(c.address, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	grpcClient, err := c.grpcClient()
 	if err != nil {
 		return 0, err
 	}
-	defer conn.Close()
 
-	return fn(callCtx, usermanagementpb.NewUserManagementServiceClient(conn))
+	return fn(callCtx, grpcClient)
+}
+
+// grpcClient создаёт соединение с usermanagement-service один раз и дальше переиспользует его.
+// Раньше соединение открывалось и закрывалось на каждый запрос: DNS, TCP и HTTP/2 каждый раз
+// заново, а при неудачной попытке gRPC ждёт перед повтором около секунды, отсюда хвост p95/p99.
+// ClientConn безопасен для одновременного использования из многих горутин.
+func (c *UserClient) grpcClient() (usermanagementpb.UserManagementServiceClient, error) {
+	c.connOnce.Do(func() {
+		c.conn, c.connErr = grpc.NewClient(c.address, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	})
+	if c.connErr != nil {
+		return nil, c.connErr
+	}
+	return usermanagementpb.NewUserManagementServiceClient(c.conn), nil
 }
 
 func (c *UserClient) userIDFromToken(authHeader string) (int, error) {
